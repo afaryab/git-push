@@ -34,23 +34,25 @@ cd "$DEST_DIR"
 
 if [ -z "$REMOTE_URL" ]; then
   if [ -n "$REPOSITORY" ]; then
-    REMOTE_URL="https://x-access-token:${GIT_TOKEN}@github.com/${REPOSITORY}.git"
+    REMOTE_URL="https://github.com/${REPOSITORY}.git"
   else
     echo "Set GIT_REMOTE_URL or GITHUB_REPOSITORY to define the target repository." >&2
     exit 1
   fi
 fi
 
-if [ -n "$GIT_TOKEN" ]; then
-  case "$REMOTE_URL" in
-    https://*)
-      REMOTE_URL="${REMOTE_URL/https:\/\//https:\/\/x-access-token:${GIT_TOKEN}@}"
-      ;;
-    git@github.com:*)
-      REMOTE_URL="https://x-access-token:${GIT_TOKEN}@github.com/${REMOTE_URL#git@github.com:}"
-      ;;
-  esac
-fi
+# Normalize supported remote URL formats to HTTPS without embedded credentials
+case "$REMOTE_URL" in
+  https://*/*)
+    ;; # already HTTPS
+  git@github.com:*)
+    REMOTE_URL="https://github.com/${REMOTE_URL#git@github.com:}"
+    ;; # convert SSH-style to HTTPS
+  *)
+    echo "Unsupported REMOTE_URL format: $REMOTE_URL" >&2
+    exit 1
+    ;;
+esac
 
 if [ ! -d .git ]; then
   git init -b "$BRANCH"
