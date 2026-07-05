@@ -1,0 +1,17 @@
+version: "3.9"
+
+services:
+  git-push:
+    image: your-docker-user/git-push
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: git-push
+    volumes:
+      - .:/workspace
+    environment:
+      GIT_TOKEN: ${GIT_TOKEN}
+      GITHUB_REPOSITORY: ${GITHUB_REPOSITORY:-owner/repo}
+      GIT_BRANCH: ${GIT_BRANCH:-main}
+      COMMIT_MESSAGE: ${COMMIT_MESSAGE:-chore: sync from container}
+    restart: "no"
