@@ -73,7 +73,47 @@ fi
 
 git commit -m "$COMMIT_MESSAGE"
 
-GIT_TERMINAL_PROMPT=0 \
-  git -c credential.helper= \
-      -c http.extraheader="AUTHORIZATION: Bearer ${GIT_TOKEN}" \
-      push -u origin "$BRANCH"
+push_with_bearer() {
+  GIT_TERMINAL_PROMPT=0 \
+    git -c credential.helper= \
+        -c http.extraheader="AUTHORIZATION: Bearer ${GIT_TOKEN}" \
+        push -u origin "$BRANCH"
+}
+
+push_with_token_header() {
+  GIT_TERMINAL_PROMPT=0 \
+    git -c credential.helper= \
+        -c http.extraheader="AUTHORIZATION: token ${GIT_TOKEN}" \
+        push -u origin "$BRANCH"
+}
+
+# Try Bearer header first, fall back to token header, then to GIT_ASKPASS if needed
+if push_with_bearer; then
+  echo "Push succeeded using Bearer header."
+elif push_with_token_header; then
+  echo "Push succeeded using token header."
+else
+  echo "Header auth failed; trying GIT_ASKPASS fallback..." >&2
+  ASK_PASS_SCRIPT=$(mktemp)
+  cat > "$ASK_PASS_SCRIPT" <<'EOF'
+#!/usr/bin/env sh
+echo "$GIT_TOKEN"
+EOF
+  chmod +x "$ASK_PASS_SCRIPT"
+
+  # Ensure origin contains a username to trigger password prompt handling by GIT_ASKPASS
+  # e.g. https://github.com/owner/repo.git -> https://x-access-token@github.com/owner/repo.git
+  ORIGIN_URL="$REMOTE_URL"
+  ORIGIN_WITH_USER="${ORIGIN_URL/https:\/\//https://x-access-token@}"
+  git remote set-url origin "$ORIGIN_WITH_USER"
+
+  GIT_ASKPASS="$ASK_PASS_SCRIPT" GIT_TERMINAL_PROMPT=0 \
+    git -c credential.helper= push -u origin "$BRANCH" || {
+      echo "Push failed with all auth methods." >&2
+      rm -f "$ASK_PASS_SCRIPT"
+      exit 1
+    }
+
+  rm -f "$ASK_PASS_SCRIPT"
+  echo "Push succeeded using GIT_ASKPASS fallback."
+fi
