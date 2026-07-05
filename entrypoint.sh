@@ -73,4 +73,7 @@ fi
 
 git commit -m "$COMMIT_MESSAGE"
 
-git -c http.extraheader="AUTHORIZATION: Bearer ${GIT_TOKEN}" push -u origin "$BRANCH"
+GIT_TERMINAL_PROMPT=0 \
+  git -c credential.helper= \
+      -c http.extraheader="AUTHORIZATION: Bearer ${GIT_TOKEN}" \
+      push -u origin "$BRANCH"
