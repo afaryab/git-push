@@ -2,7 +2,8 @@
 set -euo pipefail
 
 SOURCE_DIR="${SOURCE_DIR:-/workspace}"
-DEST_DIR="${DEST_DIR:-/app/repo}"
+# Default destination: if not overridden, place repo under the workspace (e.g. /workspace/repo).
+DEST_DIR="${DEST_DIR:-${SOURCE_DIR}/repo}"
 REMOTE_URL="${GIT_REMOTE_URL:-}"
 REPOSITORY="${GITHUB_REPOSITORY:-${GIT_REPOSITORY:-}}"
 BRANCH="${GIT_BRANCH:-main}"
@@ -27,7 +28,30 @@ if [ -d "$DEST_DIR" ]; then
 fi
 
 if [ -d "$SOURCE_DIR" ] && [ "$(find "$SOURCE_DIR" -mindepth 1 -maxdepth 1 | wc -l)" -gt 0 ]; then
-  find "$SOURCE_DIR" -mindepth 1 -maxdepth 1 ! -name '.git' ! -name 'repo' -exec cp -a {} "$DEST_DIR"/ \;
+  # Copy or move top-level items from SOURCE_DIR to DEST_DIR.
+  # Set MOVE_FILES=true to remove files from the source (useful for moving mounted files into the repo).
+  while IFS= read -r -d $'\0' entry; do
+    name=$(basename "$entry")
+    if [ "$name" = ".git" ] || [ "$name" = "repo" ]; then
+      continue
+    fi
+    if [ "${MOVE_FILES:-false}" = "true" ]; then
+      if command -v rsync >/dev/null 2>&1; then
+        # Use rsync to move while preserving attributes and removing source files.
+        rsync -a --remove-source-files "$entry" "$DEST_DIR"/
+        # If the source was a directory and is now empty, remove it.
+        if [ -d "$entry" ] && [ -z "$(ls -A "$entry")" ]; then
+          rmdir "$entry" 2>/dev/null || true
+        fi
+      else
+        # Fallback: copy then remove the source (works across filesystems)
+        cp -a "$entry" "$DEST_DIR"/
+        rm -rf "$entry"
+      fi
+    else
+      cp -a "$entry" "$DEST_DIR"/
+    fi
+  done < <(find "$SOURCE_DIR" -mindepth 1 -maxdepth 1 -print0)
 fi
 
 cd "$DEST_DIR"
