@@ -73,4 +73,4 @@ fi
 
 git commit -m "$COMMIT_MESSAGE"
 
-git push -u origin "$BRANCH"
+git -c http.extraheader="AUTHORIZATION: Bearer ${GIT_TOKEN}" push -u origin "$BRANCH"
